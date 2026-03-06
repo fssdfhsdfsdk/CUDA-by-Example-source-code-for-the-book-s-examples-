@@ -36,6 +36,26 @@ struct CPUBitmap {
         delete [] pixels;
     }
 
+    // 在 ~CPUBitmap() 析构函数后添加：
+    void save_ppm(const char *filename) {
+        FILE *fp = fopen(filename, "wb");
+        if (!fp) {
+            fprintf(stderr, "Error: could not open %s for write\n", filename);
+            return;
+        }
+        // PPM 格式头：P6 = 二进制 RGB, 宽 高, 255 = 最大颜色值
+        fprintf(fp, "P6\n%d %d\n255\n", x, y);
+        
+        // 写入像素数据（跳过 alpha 通道，只保存 RGB）
+        for (int i = 0; i < x * y; i++) {
+            fputc(pixels[i * 4 + 0], fp);  // R
+            fputc(pixels[i * 4 + 1], fp);  // G
+            fputc(pixels[i * 4 + 2], fp);  // B
+        }
+        fclose(fp);
+        printf("✓ Image saved to %s\n", filename);
+    }
+    
     unsigned char* get_ptr( void ) const   { return pixels; }
     long image_size( void ) const { return x * y * 4; }
 
