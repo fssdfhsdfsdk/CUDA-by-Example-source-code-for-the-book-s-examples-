@@ -1,0 +1,78 @@
+#include "../../common/book.h"
+#include "../../common/cpu_bitmap.h"
+
+
+#define DIM 1000
+
+struct cuCpmplex {
+    int r;
+    int i;
+    __device__ cuCpmplex(float a, float b) r(a), i(b) {};
+
+    __device__ float lenth() {
+        return r * r + i * i;
+    }
+
+    __device__ cuCpmplex operator*(const cuCpmplex &a){
+        return cuCpmplex(r * a.r - i * a.i, r * a.i + i * a.r);
+    }
+
+    __device__ cuCpmplex operator+(const cuCpmplex &a){
+        return cuCpmplex(r + a.r, i + a.i);
+    }
+
+}
+
+// struct DataBlock {
+//     unsigned char * dev_bitmap;
+// }
+
+
+__device__ int julia(int a, int b) {
+
+    const float scale = 1.5;
+    float jx = scale * (float)(DIM/2 - x)/(DIM/2);
+    float jy = scale * (float)(DIM/2 - y)/(DIM/2);
+
+    cuCpmplex z(jx, jy);
+    cuCpmplex c(-0.8, 0.156);
+
+    for(int i=0; i < 200; i++) {
+        z = z**2 + c;
+        if(z.lenth() > 1000) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+__global__ void kernel(unsigned char * data_ptr) {
+    int x = blockIdx.x;
+    int y = blockIdx.y;
+    int offset = x +  y * gridDim.x;
+
+    int juliaval = julia(x, y);
+
+    data_ptr[4 * offset + 0] = 255 * juliaval;
+    data_ptr[4 * offset + 1] = 0;
+    data_ptr[4 * offset + 2] = 0;
+    data_ptr[4 * offset + 3] = 255;
+}
+
+
+
+int main(void) {
+    // DataBlock data;
+    CPUBitmap bitmap(DIM, DIM);
+    unsigned char *dev_bitmap;
+    HANDLE_ERROR(cudaMalloc((void **)&dev_bitmapp, bitmap.image_size()));
+
+    // data.dev_bitmap = dev_bitmap;
+
+    dim3 grid(DIM, DIM)
+    kernel<<<grid, 1>>>(dev_bitmap);
+    HANDLE_ERROR( cudaMemcpy(bitmap.get_bitmap_ptr(), dev_bitmap, bitmap.image_size(), cudaMemcpyDeviceToHost));
+
+    bitmap.save_ppm("julia.ppm");
+    return 0;
+}
